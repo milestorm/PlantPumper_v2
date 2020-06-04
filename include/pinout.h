@@ -5,6 +5,9 @@
 #define RTC_DAT 7
 #define RTC_CLK 6
 
+#define ROTARYENCODER_PIN1 A2
+#define ROTARYENCODER_PIN2 A3
+
 // LCD is connected via SDA and SCL
 // Arduino Nano
 // SDA: A4
