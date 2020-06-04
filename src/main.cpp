@@ -56,7 +56,7 @@ void createCustomChars() {
 /**
  * reads settings from eeprom
 **/
-void readSettings() {
+void readEEPROMSettings() {
     // read values for first timer
     startHour_1 = EEPROM.read(0);
     if (startHour_1 > 24) { startHour_1 = 0; }
@@ -89,6 +89,39 @@ void readSettings() {
         addr++;
     }
 
+}
+
+void updateEEPROMSettings(int id) {
+    switch (id) {
+    case 1:
+        // update values for first timer
+        EEPROM.update(0, startHour_1);
+        EEPROM.update(1, startMinute_1);
+        EEPROM.update(2, duration_1);
+        EEPROM.update(3, isOn_1);
+        for (int i = 0; i < 7; i++) {
+            int addr = 4;
+            EEPROM.update(addr, calendar_1[i]);
+            addr++;
+        }
+        break;
+
+    case 2:
+        // update values for second timer
+        EEPROM.update(20, startHour_1);
+        EEPROM.update(21, startMinute_1);
+        EEPROM.update(22, duration_1);
+        EEPROM.update(23, isOn_1);
+        for (int i = 0; i < 7; i++) {
+            int addr = 24;
+            EEPROM.update(addr, calendar_1[i]);
+            addr++;
+        }
+        break;
+
+    default:
+        break;
+    }
 }
 
 /**
