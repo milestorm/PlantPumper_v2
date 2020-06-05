@@ -29,6 +29,8 @@ int duration_2 = 0;
 int isOn_2 = 0;
 int calendar_2[7] = {0, 0, 0, 0, 0, 0, 0};
 
+int convertedCalendar[7];
+
 /**
  * inits custom characters for LCD
 **/
@@ -41,20 +43,25 @@ void createCustomChars() {
     lcd.createChar(5, chr_Drop);
 
     lcd.createChar(10, chr_M);
-    lcd.createChar(20, chr_T);
-    lcd.createChar(30, chr_W);
-    lcd.createChar(40, chr_F);
-    lcd.createChar(50, chr_S);
+    lcd.createChar(11, chr_T);
+    lcd.createChar(12, chr_W);
+    lcd.createChar(13, chr_T);
+    lcd.createChar(14, chr_F);
+    lcd.createChar(15, chr_S);
+    lcd.createChar(16, chr_S);
 
-    lcd.createChar(11, chr_M_inv);
+    lcd.createChar(20, chr_M_inv);
     lcd.createChar(21, chr_T_inv);
-    lcd.createChar(31, chr_W_inv);
-    lcd.createChar(41, chr_F_inv);
-    lcd.createChar(51, chr_S_inv);
+    lcd.createChar(22, chr_W_inv);
+    lcd.createChar(23, chr_T_inv);
+    lcd.createChar(24, chr_F_inv);
+    lcd.createChar(25, chr_S_inv);
+    lcd.createChar(26, chr_S_inv);
 }
 
 /**
  * reads settings from eeprom
+ * if the values are not valid, 0 is applied
 **/
 void readEEPROMSettings() {
     // read values for first timer
@@ -108,13 +115,13 @@ void updateEEPROMSettings(int id) {
 
     case 2:
         // update values for second timer
-        EEPROM.update(20, startHour_1);
-        EEPROM.update(21, startMinute_1);
-        EEPROM.update(22, duration_1);
-        EEPROM.update(23, isOn_1);
+        EEPROM.update(20, startHour_2);
+        EEPROM.update(21, startMinute_2);
+        EEPROM.update(22, duration_2);
+        EEPROM.update(23, isOn_2);
         for (int i = 0; i < 7; i++) {
             int addr = 24;
-            EEPROM.update(addr, calendar_1[i]);
+            EEPROM.update(addr, calendar_2[i]);
             addr++;
         }
         break;
@@ -132,6 +139,88 @@ String to2digits(int number) {
     if (number >= 0 && number < 10)
         res = "0" + res;
     return res;
+}
+
+/**
+ * converts calendar array of 1 and 0 to custom character values
+**/
+void convertCalendar(int *calendarArray) {
+    for (int i = 0; i < 7; i++) {
+        if (calendarArray[i] == 0) {
+            convertedCalendar[i] = 10 + calendarArray[i];
+        } else {
+            convertedCalendar[i] = 20 + calendarArray[i];
+        }
+    }
+}
+
+void printTimerValuesToLCD(int timerId) {
+	char buffer[50];
+
+    lcd.clear();
+
+    switch (timerId) {
+    case 1:
+        // first line of lcd
+        convertCalendar(calendar_1);
+
+        lcd.write(1); // number 1 pump symbol
+        lcd.setCursor(2, 0);
+        lcd.write(0); // clock symbol
+        lcd.setCursor(3, 0);
+        snprintf(buffer, 50, "%s:%s    %ss", to2digits(startHour_1), to2digits(startMinute_1), to2digits(duration_1));
+        lcd.print(buffer);
+        lcd.setCursor(11, 0);
+        lcd.write(3); // faucet symbol
+
+        // second line of lcd
+        lcd.setCursor(2, 1);
+        lcd.write(4); // calendar symbol
+        for (int i = 0; i < 7; i++) { // prints calendar
+            lcd.setCursor(3 + i, 1);
+            lcd.write(convertedCalendar[i]);
+        }
+        lcd.setCursor(11, 1);
+        if (isOn_1 == 1) { // prints enabled state of current pump
+            lcd.print("ON");
+        } else {
+            lcd.print("OFF");
+        }
+
+        break;
+
+    case 2:
+        // second line of lcd
+        convertCalendar(calendar_2);
+
+        lcd.write(1); // number 1 pump symbol
+        lcd.setCursor(2, 0);
+        lcd.write(0); // clock symbol
+        lcd.setCursor(3, 0);
+        snprintf(buffer, 50, "%s:%s    %ss", to2digits(startHour_2), to2digits(startMinute_2), to2digits(duration_2));
+        lcd.print(buffer);
+        lcd.setCursor(11, 0);
+        lcd.write(3); // faucet symbol
+
+        // second line of lcd
+        lcd.setCursor(2, 1);
+        lcd.write(4); // calendar symbol
+        for (int i = 0; i < 7; i++) { // prints calendar
+            lcd.setCursor(3 + i, 1);
+            lcd.write(convertedCalendar[i]);
+        }
+        lcd.setCursor(11, 1);
+        if (isOn_2 == 1) { // prints enabled state of current pump
+            lcd.print("ON");
+        } else {
+            lcd.print("OFF");
+        }
+        break;
+
+    default:
+        break;
+    }
+
 }
 
 // ===============================================================
