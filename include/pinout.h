@@ -7,6 +7,7 @@
 
 #define ROTARYENCODER_PIN1 A2
 #define ROTARYENCODER_PIN2 A3
+#define ROTARYENCODER_BUTTON 4
 
 // LCD is connected via SDA and SCL
 // Arduino Nano

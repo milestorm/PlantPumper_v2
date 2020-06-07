@@ -37,10 +37,11 @@ LiquidCrystal_I2C lcd(0x27, 16, 2);
 // Set RTC module
 DS1302RTC rtc(RTC_RST, RTC_DAT, RTC_CLK);
 // Set Rotary Encoder
-//RotaryEncoder encoder(ROTARYENCODER_PIN1, ROTARYENCODER_PIN2);
+RotaryEncoder encoder(ROTARYENCODER_PIN1, ROTARYENCODER_PIN2);
+OneButton rotaryButton(ROTARYENCODER_BUTTON, true);
 
 VirtualDelay vDelay;
-int vDelayDuration = 3000;
+int vDelayDuration = 4000;
 
 // initializes the pumps
 int pumpCount = 2;
@@ -265,8 +266,48 @@ void lcdCycler() {
             }
         }
     }
+}
 
+void rotaryButtonClickHandler() {
+    if (isEditing) {
+        encoder.setPosition(0);
+    }
+}
 
+void rotaryButtonLongPressHandler() {
+    if (isEditing == false) {
+        isEditing = true; // first command here
+        // entering editing mode
+        lcd.clear();
+        lcd.print("CONFIG MODE");
+        delay(3000);
+        printTimerValuesToLCD(0);
+    } else {
+        // exiting editing mode
+        lcd.clear();
+        lcd.cursor_off();
+        lcd.print("SAVING...");
+        delay(3000);
+        isEditing = false; // this must be the last command here.
+    }
+}
+
+void rotaryEncoderTick() {
+    if (isEditing) {
+        static int pos = 0;
+        encoder.tick();
+
+        int newPos = encoder.getPosition();
+        if (pos != newPos) {
+
+            lcd.cursor_on();
+            lcd.setCursor(0, 1);
+            lcd.print(newPos);
+            lcd.print(" ");
+            lcd.setCursor(0, 1);
+            pos = newPos;
+        }
+    }
 }
 
 // ===============================================================
@@ -279,12 +320,17 @@ void setup() {
     lcd.setCursor(0, 1);
     lcd.print("booting up...");
 
+    rotaryButton.attachClick(rotaryButtonClickHandler);
+    rotaryButton.attachLongPressStop(rotaryButtonLongPressHandler);
+
     readEEPROMSettings();
 }
 
 void loop() {
     timeWatcher();
     pumpWatcher();
+    rotaryButton.tick();
+    rotaryEncoderTick();
 
     lcdCycler();
 }
