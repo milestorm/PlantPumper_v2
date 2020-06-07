@@ -7,7 +7,30 @@
 #include <OneButton.h>
 #include <RotaryEncoder.h>
 #include <EEPROM.h>
+#include <avdweb_VirtualDelay.h>
 
+class Pump {
+    int pumpPin;
+
+    public:
+    Pump(int pin) {
+        pumpPin = pin;
+        pinMode(pumpPin, OUTPUT);
+        digitalWrite(pumpPin, HIGH);
+    }
+
+    void startWater() {
+        if (digitalRead(pumpPin) == HIGH) {
+            digitalWrite(pumpPin, LOW); // turns ON the pump
+        }
+    }
+
+    void stopWater() {
+        if (digitalRead(pumpPin) == LOW) {
+            digitalWrite(pumpPin, HIGH); // turns OFF the pump
+        }
+    }
+};
 
 // Set the LCD address to 0x27 in PCF8574 by NXP and Set to 0x3F in PCF8574A by Ti
 LiquidCrystal_I2C lcd(0x27, 16, 2);
@@ -15,6 +38,15 @@ LiquidCrystal_I2C lcd(0x27, 16, 2);
 DS1302RTC rtc(RTC_RST, RTC_DAT, RTC_CLK);
 // Set Rotary Encoder
 //RotaryEncoder encoder(ROTARYENCODER_PIN1, ROTARYENCODER_PIN2);
+
+VirtualDelay vDelay;
+int vDelayDuration = 3000;
+
+// initializes the pumps
+int pumpCount = 2;
+Pump pump1(RELAY1);
+Pump pump2(RELAY2);
+Pump pump[2] = {pump1, pump2};
 
 // initializes two sets of variables used in the timers
 // first timer at position 0, second timer at position 1
@@ -24,10 +56,22 @@ int duration[2] = {0, 0};
 int isOn[2] = {0, 0};
 int calendar[2][7] = {{0, 0, 0, 0, 0, 0, 0}, {0, 0, 0, 0, 0, 0, 0}};
 
+bool pumpActive[2] = {false, false};
+
 char calendar_on[7] = {'M', 'T', 'W', 'T', 'F', 'S', 'S'};
 char calendar_off[7] = {'m', 't', 'w', 't', 'f', 's', 's'};
 
+String dayNames[7] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
+
 char convertedCalendar[7];
+
+// stores actual time
+tmElements_t actualTime;
+
+// if something is editing, do not display the cycling display (time, pump1, pump2)
+bool isEditing = false;
+// this is cycler between time, pump1 and pump2
+int cycler = 0;
 
 /**
  * inits custom characters for LCD. Max 8 custom characters :(
@@ -48,7 +92,7 @@ void createCustomChars() {
 void readEEPROMSettings() {
     int addr = 0;
 
-    for (int i = 0; i < 2; i++) {
+    for (int i = 0; i < pumpCount; i++) {
         startHour[i] = EEPROM.read(addr);
         if (startHour[i] > 24) { startHour[i] = 0; }
         addr++;
@@ -76,7 +120,7 @@ void readEEPROMSettings() {
 void updateEEPROMSettings() {
     int addr = 0;
 
-    for (int i = 0; i < 2; i++) {
+    for (int i = 0; i < pumpCount; i++) {
         EEPROM.update(addr, startHour[i]);
         addr++;
         EEPROM.update(addr, startMinute[i]);
@@ -116,6 +160,9 @@ void convertCalendar(int id) {
     }
 }
 
+/**
+ * creates "pump" screen layout for LCD
+**/
 void printTimerValuesToLCD(int timerId) {
     lcd.clear();
 
@@ -149,6 +196,79 @@ void printTimerValuesToLCD(int timerId) {
 
 }
 
+void printTimeToLCD() {
+    lcd.clear();
+
+    lcd.print(dayNames[actualTime.Wday - 1]);
+    lcd.print(" ");
+    lcd.print(actualTime.Day);
+    lcd.print(".");
+    lcd.print(actualTime.Month);
+    lcd.print(".");
+
+    lcd.setCursor(11, 0);
+    lcd.print(to2digits(actualTime.Hour));
+    lcd.print(":");
+    lcd.print(to2digits(actualTime.Minute));
+}
+
+/**
+ * watches, if pumpActive, and turns on or off the relays
+ * must be placed in loop()
+**/
+void pumpWatcher() {
+    for (int i = 0; i < pumpCount; i++) {
+        if (pumpActive[i] == true) {
+            pump[i].startWater();
+        } else {
+            pump[i].stopWater();
+        }
+    }
+}
+
+/**
+ * reads time from RTCmodule
+ * must be placed in loop()
+**/
+void timeWatcher() {
+    if (!rtc.read(actualTime)) {
+        // reads time and puts it in actualTime
+    } else {
+        lcd.clear();
+        lcd.print("RTC read error!");
+        delay(5000);
+    }
+}
+
+void lcdCycler() {
+    if (!isEditing) {
+        vDelay.start(vDelayDuration);
+        if(vDelay.elapsed()) {
+            switch (cycler) {
+            case 0:
+                printTimeToLCD();
+                cycler++;
+                break;
+
+            case 1:
+                printTimerValuesToLCD(0);
+                cycler++;
+                break;
+
+            case 2:
+                printTimerValuesToLCD(1);
+                cycler = 0;
+                break;
+
+            default:
+                break;
+            }
+        }
+    }
+
+
+}
+
 // ===============================================================
 
 void setup() {
@@ -160,13 +280,11 @@ void setup() {
     lcd.print("booting up...");
 
     readEEPROMSettings();
-    delay(3000);
-
 }
 
 void loop() {
-    printTimerValuesToLCD(0);
-    delay(3000);
-    printTimerValuesToLCD(1);
-    delay(3000);
+    timeWatcher();
+    pumpWatcher();
+
+    lcdCycler();
 }
