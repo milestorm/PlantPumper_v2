@@ -335,7 +335,8 @@ void lcdCycler() {
 }
 
 void lcdBacklightWatcher() {
-// TODO
+    // TODO
+    unsigned long currentMillis = millis();
 }
 
 void menuScreen(int id) {
