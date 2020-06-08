@@ -71,8 +71,33 @@ tmElements_t actualTime;
 
 // if something is editing, do not display the cycling display (time, pump1, pump2)
 bool isEditing = false;
+bool isMenu = false;
 // this is cycler between time, pump1 and pump2
 int cycler = 0;
+
+int menuPosition = 0;
+int editingPosition = 0;
+int cursorPositionsPump[11][2] = {
+    // first pump screen
+    {3, 0}, // Hours
+    {7, 0}, // Minutes
+    {12, 0}, // Duration
+    {3, 1}, // Monday
+    {4, 1}, // Tuesday
+    {5, 1}, // Wednesday
+    {6, 1}, // Thursday
+    {7, 1}, // Friday, Friday, let's get down on Friday
+    {8, 1}, // Saturday
+    {9, 1}, // Sunday
+    {11, 1} // On/Off
+};
+int cursorPositionTime[5][2] = {
+    {0, 0}, // Day
+    {3, 0}, // Month
+    {6, 0}, // Year
+    {11, 0}, // Hour
+    {14, 0} // Minute
+};
 
 /**
  * inits custom characters for LCD. Max 8 custom characters :(
@@ -241,36 +266,70 @@ void timeWatcher() {
     }
 }
 
+void showEditScreen(int id) {
+    switch (id) {
+    case 0:
+        printTimeToLCD();
+        break;
+
+    case 1:
+        printTimerValuesToLCD(0);
+        break;
+
+    case 2:
+        printTimerValuesToLCD(1);
+        break;
+
+    default:
+        break;
+    }
+}
+
 void lcdCycler() {
     if (!isEditing) {
         vDelay.start(vDelayDuration);
         if(vDelay.elapsed()) {
-            switch (cycler) {
-            case 0:
-                printTimeToLCD();
-                cycler++;
-                break;
-
-            case 1:
-                printTimerValuesToLCD(0);
-                cycler++;
-                break;
-
-            case 2:
-                printTimerValuesToLCD(1);
+            showEditScreen(cycler);
+            cycler++;
+            if (cycler > 2) {
                 cycler = 0;
-                break;
-
-            default:
-                break;
             }
         }
     }
 }
 
+void menuScreen(int id) {
+    lcd.clear();
+    lcd.print("CONFIG MENU");
+    lcd.setCursor(0, 1);
+    menuPosition = id;
+
+    switch (id) {
+    case 0:
+        lcd.print("Pump #1");
+        break;
+
+    case 1:
+        lcd.print("Pump #2");
+        break;
+
+    case 2:
+        lcd.print("Time and date");
+        break;
+
+    default:
+        break;
+    }
+}
+
 void rotaryButtonClickHandler() {
     if (isEditing) {
-        encoder.setPosition(0);
+        if (isMenu) {
+            // click confirms menu
+            isMenu = false;
+            showEditScreen(menuPosition);
+        }
+
     }
 }
 
@@ -278,10 +337,8 @@ void rotaryButtonLongPressHandler() {
     if (isEditing == false) {
         isEditing = true; // first command here
         // entering editing mode
-        lcd.clear();
-        lcd.print("CONFIG MODE");
-        delay(3000);
-        printTimerValuesToLCD(0);
+        menuPosition = 0;
+        menuScreen(menuPosition);
     } else {
         // exiting editing mode
         lcd.clear();
@@ -298,17 +355,40 @@ void rotaryEncoderTick() {
         encoder.tick();
 
         int newPos = encoder.getPosition();
+        RotaryEncoder::Direction direction = encoder.getDirection();
         if (pos != newPos) {
 
-            lcd.cursor_on();
+            if (isMenu) {
+                // user is in the main menu
+                if (direction == RotaryEncoder::Direction::CLOCKWISE) {
+                    menuPosition++;
+                } else if (direction == RotaryEncoder::Direction::COUNTERCLOCKWISE) {
+                    menuPosition--;
+                }
+                if (menuPosition > 2 || menuPosition < 0) {
+                    menuPosition = 0;
+                }
+
+                menuScreen(menuPosition);
+            }
+
+            /* lcd.cursor_on();
             lcd.setCursor(0, 1);
             lcd.print(newPos);
             lcd.print(" ");
-            lcd.setCursor(0, 1);
+            lcd.setCursor(0, 1); */
             pos = newPos;
         }
     }
 }
+
+/*
+TODO
+----
+
+- musim po longpressu udelat jakysi menu s tim, ze si vyberu, jakej screen chci editovat.
+
+*/
 
 // ===============================================================
 
