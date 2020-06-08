@@ -43,6 +43,10 @@ OneButton rotaryButton(ROTARYENCODER_BUTTON, true);
 VirtualDelay vDelay;
 int vDelayDuration = 4000;
 
+uint8_t lcdBacklight = 1;
+VirtualDelay lcdBacklightDelay;
+int backlightDelayDuration = 10000;
+
 // initializes the pumps
 int pumpCount = 2;
 Pump pump1(RELAY1);
@@ -51,36 +55,41 @@ Pump pump[2] = {pump1, pump2};
 
 // initializes two sets of variables used in the timers
 // first timer at position 0, second timer at position 1
-int startHour[2] = {0, 0};
-int startMinute[2] = {0, 0};
-int duration[2] = {0, 0};
-int isOn[2] = {0, 0};
-int calendar[2][7] = {{0, 0, 0, 0, 0, 0, 0}, {0, 0, 0, 0, 0, 0, 0}};
+uint8_t startHour[2] = {0, 0};
+uint8_t startMinute[2] = {0, 0};
+uint8_t duration[2] = {0, 0};
+uint8_t isOn[2] = {0, 0};
+uint8_t calendar[2][7] = {{0, 0, 0, 0, 0, 0, 0}, {0, 0, 0, 0, 0, 0, 0}};
 
 bool pumpActive[2] = {false, false};
 
 char calendar_on[7] = {'M', 'T', 'W', 'T', 'F', 'S', 'S'};
 char calendar_off[7] = {'m', 't', 'w', 't', 'f', 's', 's'};
 
-String dayNames[7] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
+String dayNames[7] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
 
 char convertedCalendar[7];
 
 // stores actual time
 tmElements_t actualTime;
 
+tmElements_t newTime;
+
 // if something is editing, do not display the cycling display (time, pump1, pump2)
 bool isEditing = false;
+bool isEditingCalendar = false;
 bool isMenu = false;
 // this is cycler between time, pump1 and pump2
 int cycler = 0;
 
-int menuPosition = 0;
+uint8_t menuPosition = 0;
 int editingPosition = 0;
+int calendarPosition = 0;
+int cursorPositionsPumpLength = 11;
 int cursorPositionsPump[11][2] = {
     // first pump screen
     {3, 0}, // Hours
-    {7, 0}, // Minutes
+    {6, 0}, // Minutes
     {12, 0}, // Duration
     {3, 1}, // Monday
     {4, 1}, // Tuesday
@@ -91,10 +100,11 @@ int cursorPositionsPump[11][2] = {
     {9, 1}, // Sunday
     {11, 1} // On/Off
 };
+int cursorPositionTimeLength = 5;
 int cursorPositionTime[5][2] = {
-    {0, 0}, // Day
-    {3, 0}, // Month
-    {6, 0}, // Year
+    {0, 1}, // Day
+    {3, 1}, // Month
+    {6, 1}, // Year
     {11, 0}, // Hour
     {14, 0} // Minute
 };
@@ -163,6 +173,23 @@ void updateEEPROMSettings() {
 
 }
 
+void saveTimeToRTC(tmElements_t newTm) {
+    time_t t;
+    tmElements_t tm;
+
+    tm.Year = newTm.Year;
+    tm.Month = newTm.Month;
+    tm.Day = newTm.Day;
+    tm.Hour = newTm.Hour;
+    tm.Minute = newTm.Minute;
+    tm.Second = 0;
+    t = makeTime(tm);
+
+    if (rtc.set(t) == 0) {
+      // Serial.println("Time set!");
+    }
+}
+
 /**
  * converts number to string with leading zero for 0-9
 **/
@@ -183,6 +210,14 @@ void convertCalendar(int id) {
         } else {
             convertedCalendar[i] = calendar_on[i];
         }
+    }
+}
+
+char calendarDayForPrint(int id, int value) {
+    if (value == 0) {
+        return calendar_off[id];
+    } else {
+        return calendar_on[id];
     }
 }
 
@@ -215,7 +250,7 @@ void printTimerValuesToLCD(int timerId) {
     }
     lcd.setCursor(11, 1);
     if (isOn[timerId] == 1) { // prints enabled state of current pump
-        lcd.print("ON");
+        lcd.print("ON ");
     } else {
         lcd.print("OFF");
     }
@@ -226,11 +261,12 @@ void printTimeToLCD() {
     lcd.clear();
 
     lcd.print(dayNames[actualTime.Wday - 1]);
-    lcd.print(" ");
-    lcd.print(actualTime.Day);
+    lcd.setCursor(0, 1);
+    lcd.print(to2digits(actualTime.Day));
     lcd.print(".");
-    lcd.print(actualTime.Month);
+    lcd.print(to2digits(actualTime.Month));
     lcd.print(".");
+    lcd.print(actualTime.Year + 1970); // must add 1970, because tm time is counted after 1970
 
     lcd.setCursor(11, 0);
     lcd.print(to2digits(actualTime.Hour));
@@ -298,6 +334,10 @@ void lcdCycler() {
     }
 }
 
+void lcdBacklightWatcher() {
+// TODO
+}
+
 void menuScreen(int id) {
     lcd.clear();
     lcd.print("CONFIG MENU");
@@ -306,19 +346,51 @@ void menuScreen(int id) {
 
     switch (id) {
     case 0:
-        lcd.print("Pump #1");
+        lcd.print("Time and date");
         break;
 
     case 1:
-        lcd.print("Pump #2");
+        lcd.print("Pump #1");
         break;
 
     case 2:
-        lcd.print("Time and date");
+        lcd.print("Pump #2");
         break;
 
     default:
         break;
+    }
+}
+
+void rotaryButtonLongPressHandler() {
+    if (isEditing == false) {
+        isEditing = true; // first command here
+        // entering editing mode
+        menuPosition = 0;
+        isMenu = true;
+        newTime = actualTime;
+        menuScreen(menuPosition);
+    } else {
+        // exiting editing mode
+        lcd.clear();
+        lcd.cursor_off();
+        lcd.print("Saving config...");
+        delay(2000);
+        editingPosition = 0;
+        calendarPosition = 0;
+        if (menuPosition == 0) {
+            saveTimeToRTC(newTime);
+        }
+        updateEEPROMSettings();
+        isEditing = false; // this must be the last command here.
+    }
+}
+
+void setCursorPosition() {
+    if (menuPosition == 0) {
+        lcd.setCursor(cursorPositionTime[editingPosition][0], cursorPositionTime[editingPosition][1]);
+    } else {
+       lcd.setCursor(cursorPositionsPump[editingPosition][0], cursorPositionsPump[editingPosition][1]); 
     }
 }
 
@@ -328,26 +400,33 @@ void rotaryButtonClickHandler() {
             // click confirms menu
             isMenu = false;
             showEditScreen(menuPosition);
+            lcd.cursor_on();
+            setCursorPosition();
+            
+        } else {
+            editingPosition++;
+            if (menuPosition == 0) {
+               if (editingPosition > cursorPositionTimeLength - 1) editingPosition = 0; 
+            } else {
+                if (editingPosition > cursorPositionsPumpLength - 1) editingPosition = 0;
+            }
+            setCursorPosition();
         }
-
     }
 }
 
-void rotaryButtonLongPressHandler() {
-    if (isEditing == false) {
-        isEditing = true; // first command here
-        // entering editing mode
-        menuPosition = 0;
-        menuScreen(menuPosition);
-    } else {
-        // exiting editing mode
-        lcd.clear();
-        lcd.cursor_off();
-        lcd.print("SAVING...");
-        delay(3000);
-        isEditing = false; // this must be the last command here.
+void encoderAddValue(RotaryEncoder::Direction direction, uint8_t &value, int bottomLimit, int upperLimit) {
+    if (direction == RotaryEncoder::Direction::CLOCKWISE) {
+        value++;
+    } else if (direction == RotaryEncoder::Direction::COUNTERCLOCKWISE) {
+        if (value == bottomLimit) { // because of uint8_t cannot go to negative numbers
+            value = upperLimit;
+        } else {
+            value--;
+        }
     }
-}
+    if (value > upperLimit) value = bottomLimit;
+};
 
 void rotaryEncoderTick() {
     if (isEditing) {
@@ -355,45 +434,116 @@ void rotaryEncoderTick() {
         encoder.tick();
 
         int newPos = encoder.getPosition();
-        RotaryEncoder::Direction direction = encoder.getDirection();
+        
         if (pos != newPos) {
+            RotaryEncoder::Direction direction = encoder.getDirection();
 
             if (isMenu) {
                 // user is in the main menu
-                if (direction == RotaryEncoder::Direction::CLOCKWISE) {
-                    menuPosition++;
-                } else if (direction == RotaryEncoder::Direction::COUNTERCLOCKWISE) {
-                    menuPosition--;
-                }
-                if (menuPosition > 2 || menuPosition < 0) {
-                    menuPosition = 0;
-                }
-
+                encoderAddValue(direction, menuPosition, 0, 2);
                 menuScreen(menuPosition);
+            } else {
+                if (menuPosition == 0) {
+                    // set time and date
+                    switch (editingPosition) {
+                    case 0: // day
+                        encoderAddValue(direction, newTime.Day, 1, 31);
+                        lcd.print(to2digits(newTime.Day));
+                        setCursorPosition();
+                        break;
+                    
+                    case 1: // month
+                        encoderAddValue(direction, newTime.Month, 1, 12);
+                        lcd.print(to2digits(newTime.Month));
+                        setCursorPosition();
+                        break;
+                    
+                    case 2: // year
+                        encoderAddValue(direction, newTime.Year, 0, 255);
+                        lcd.print(to2digits(newTime.Year + 1970));
+                        setCursorPosition();
+                        break;
+                    
+                    case 3: // hour
+                        encoderAddValue(direction, newTime.Hour, 0, 23);
+                        lcd.print(to2digits(newTime.Hour));
+                        setCursorPosition();
+                        break;
+
+                    case 4: // minute
+                        encoderAddValue(direction, newTime.Minute, 0, 59);
+                        lcd.print(to2digits(newTime.Minute));
+                        setCursorPosition();
+                        break;
+                    
+                    default:
+                        break;
+                    }
+                } else {
+                    // set pumps
+                    int pumpPosition = menuPosition - 1;
+
+                    switch (editingPosition) {
+                    case 0: // hours
+                        encoderAddValue(direction, startHour[pumpPosition], 0, 23);
+                        lcd.print(to2digits(startHour[pumpPosition]));
+                        setCursorPosition();
+                        break;
+
+                    case 1: // minutes
+                        encoderAddValue(direction, startMinute[pumpPosition], 0, 59);
+                        lcd.print(to2digits(startMinute[pumpPosition]));
+                        setCursorPosition();
+                        break;
+
+                    case 2: // duration
+                        encoderAddValue(direction, duration[pumpPosition], 1, 59);
+                        lcd.print(to2digits(duration[pumpPosition]));
+                        setCursorPosition();
+                        break;
+                    
+                    case 3: // calendar
+                    case 4:
+                    case 5:
+                    case 6:
+                    case 7:
+                    case 8:
+                    case 9:
+                        encoderAddValue(direction, calendar[pumpPosition][editingPosition - 3], 0, 1);
+                        lcd.print(calendarDayForPrint(editingPosition - 3, calendar[pumpPosition][editingPosition - 3]));
+                        setCursorPosition();
+                        break;
+                    
+                    case 10: // on/off
+                        encoderAddValue(direction, isOn[pumpPosition], 0, 1);
+                        if (isOn[pumpPosition] == 1) {
+                            lcd.print("ON ");
+                        } else {
+                            lcd.print("OFF");
+                        }
+                        setCursorPosition();
+                        break;
+                    
+                    
+                    default:
+                        break;
+                    }
+                }
+                
             }
 
-            /* lcd.cursor_on();
-            lcd.setCursor(0, 1);
-            lcd.print(newPos);
-            lcd.print(" ");
-            lcd.setCursor(0, 1); */
             pos = newPos;
         }
     }
 }
 
-/*
-TODO
-----
-
-- musim po longpressu udelat jakysi menu s tim, ze si vyberu, jakej screen chci editovat.
-
-*/
-
 // ===============================================================
 
 void setup() {
+    Serial.begin(9600);
+
     lcd.begin();
+    lcd.setBacklight(lcdBacklight);
     createCustomChars();
     lcd.home();
     lcd.print("PlantPumper v2");
