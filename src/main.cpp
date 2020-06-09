@@ -63,8 +63,8 @@ uint8_t calendar[2][7] = {{0, 0, 0, 0, 0, 0, 0}, {0, 0, 0, 0, 0, 0, 0}};
 
 bool pumpActive[2] = {false, false};
 
-char calendar_on[7] = {'M', 'T', 'W', 'T', 'F', 'S', 'S'};
-char calendar_off[7] = {'m', 't', 'w', 't', 'f', 's', 's'};
+char calendar_on[7] = {'S', 'M', 'T', 'W', 'T', 'F', 'S'};
+char calendar_off[7] = {'s', 'm', 't', 'w', 't', 'f', 's'};
 
 String dayNames[7] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
 
@@ -122,7 +122,7 @@ void createCustomChars() {
 }
 
 /**
- * reads settings from eeprom
+ * reads settings from EEPROM
  * if the values are not valid, 0 is applied
 **/
 void readEEPROMSettings() {
@@ -153,6 +153,10 @@ void readEEPROMSettings() {
     }
 }
 
+/**
+ * updates settings to EEPROM
+ * uses update function to save write cycles
+**/
 void updateEEPROMSettings() {
     int addr = 0;
 
@@ -173,6 +177,9 @@ void updateEEPROMSettings() {
 
 }
 
+/**
+ * saves time to RTC module
+**/
 void saveTimeToRTC(tmElements_t newTm) {
     time_t t;
     tmElements_t tm;
@@ -213,6 +220,9 @@ void convertCalendar(int id) {
     }
 }
 
+/**
+ * returns caps or nocaps (if the day is on or off) character of the calendar.
+**/
 char calendarDayForPrint(int id, int value) {
     if (value == 0) {
         return calendar_off[id];
@@ -257,6 +267,9 @@ void printTimerValuesToLCD(int timerId) {
 
 }
 
+/**
+ * creates time screen layout for LCD
+**/
 void printTimeToLCD() {
     lcd.clear();
 
@@ -302,6 +315,10 @@ void timeWatcher() {
     }
 }
 
+/**
+ * prints "screen" to LCD. Like time screen or pump screen
+ * defined by id
+**/
 void showEditScreen(int id) {
     switch (id) {
     case 0:
@@ -321,6 +338,9 @@ void showEditScreen(int id) {
     }
 }
 
+/**
+ * cycling of the screens
+**/
 void lcdCycler() {
     if (!isEditing) {
         vDelay.start(vDelayDuration);
@@ -334,6 +354,9 @@ void lcdCycler() {
     }
 }
 
+/**
+ * watcher for handling backlight turning on/off
+**/
 void lcdBacklightTick() {
     unsigned long currentMillis = millis();
 
@@ -344,9 +367,12 @@ void lcdBacklightTick() {
     }
 }
 
+/**
+ * shows configuration menu screen
+**/
 void menuScreen(int id) {
     lcd.clear();
-    lcd.print("CONFIG MENU");
+    lcd.print("CONFIG MENU:");
     lcd.setCursor(0, 1);
     menuPosition = id;
 
@@ -368,6 +394,10 @@ void menuScreen(int id) {
     }
 }
 
+/**
+ * handles longpress of the rotary encoder
+ * used for entering to config menu and saving configuration
+**/
 void rotaryButtonLongPressHandler() {
     if (isEditing == false) {
         isEditing = true; // first command here
@@ -393,14 +423,20 @@ void rotaryButtonLongPressHandler() {
     }
 }
 
+/**
+ * sets cursor to position defined by the editinPosition parameter
+**/
 void setCursorPosition() {
     if (menuPosition == 0) {
         lcd.setCursor(cursorPositionTime[editingPosition][0], cursorPositionTime[editingPosition][1]);
     } else {
-       lcd.setCursor(cursorPositionsPump[editingPosition][0], cursorPositionsPump[editingPosition][1]); 
+       lcd.setCursor(cursorPositionsPump[editingPosition][0], cursorPositionsPump[editingPosition][1]);
     }
 }
 
+/**
+ * handles click of the rotary encoder
+**/
 void rotaryButtonClickHandler() {
     if (isEditing) {
         if (isMenu) {
@@ -413,7 +449,7 @@ void rotaryButtonClickHandler() {
         } else {
             editingPosition++;
             if (menuPosition == 0) {
-               if (editingPosition > cursorPositionTimeLength - 1) editingPosition = 0; 
+               if (editingPosition > cursorPositionTimeLength - 1) editingPosition = 0;
             } else {
                 if (editingPosition > cursorPositionsPumpLength - 1) editingPosition = 0;
             }
@@ -422,6 +458,9 @@ void rotaryButtonClickHandler() {
     }
 }
 
+/**
+ * handles increasing and decreasing the value of "value" parameter within the limits
+**/
 void encoderAddValue(RotaryEncoder::Direction direction, uint8_t &value, int bottomLimit, int upperLimit) {
     if (direction == RotaryEncoder::Direction::CLOCKWISE) {
         value++;
@@ -435,17 +474,20 @@ void encoderAddValue(RotaryEncoder::Direction direction, uint8_t &value, int bot
     if (value > upperLimit) value = bottomLimit;
 };
 
+/**
+ * handles rotating of the rotary encoder
+**/
 void rotaryEncoderTick() {
-    if (isEditing) {
-        static int pos = 0;
-        encoder.tick();
+    static int pos = 0;
+    encoder.tick();
 
-        int newPos = encoder.getPosition();
+    int newPos = encoder.getPosition();
 
-        if (pos != newPos) {
-            RotaryEncoder::Direction direction = encoder.getDirection();
-            backlightPreviousMillis = millis();
+    if (pos != newPos) {
+        RotaryEncoder::Direction direction = encoder.getDirection();
+        backlightPreviousMillis = millis(); // when rotated, extend delay for backlight
 
+        if (isEditing) {
             if (isMenu) {
                 // user is in the main menu
                 encoderAddValue(direction, menuPosition, 0, 2);
@@ -528,17 +570,34 @@ void rotaryEncoderTick() {
                 }
                 setCursorPosition();
             }
+        } // isEditing
+        pos = newPos;
+    }
+}
 
-            pos = newPos;
+/**
+ * watches the activation time and activates the pumps
+**/
+void pumpActivationWatcher() {
+    for (int i = 0; i < pumpCount; i++) {
+        if (calendar[i][actualTime.Wday] == 1) { // weekday is matched
+            if ((actualTime.Hour == startHour[i]) && (actualTime.Minute == startMinute[i]) && (actualTime.Second == 0)) { // time is matched
+                // start the pump
+                pumpActive[i] = true;
+            } else if ((actualTime.Hour == startHour[i]) && (actualTime.Minute == startMinute[i]) && (actualTime.Second == duration[i])) {
+                // stops the pump
+                pumpActive[i] = false;
+            }
         }
     }
 }
 
-// ===============================================================
+// ============================== SETUP & LOOP =================================
 
 void setup() {
-    Serial.begin(9600);
+    // Serial.begin(9600);
 
+    // inits LCD
     lcd.begin();
     lcd.backlight();
     createCustomChars();
@@ -547,9 +606,11 @@ void setup() {
     lcd.setCursor(0, 1);
     lcd.print("booting up...");
 
+    // inits rotary encoder
     rotaryButton.attachClick(rotaryButtonClickHandler);
     rotaryButton.attachLongPressStop(rotaryButtonLongPressHandler);
 
+    // load settings from EEPROM
     readEEPROMSettings();
 }
 
@@ -559,6 +620,6 @@ void loop() {
     rotaryButton.tick();
     rotaryEncoderTick();
     lcdBacklightTick();
-
     lcdCycler();
+    pumpActivationWatcher();
 }
