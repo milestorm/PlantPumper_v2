@@ -403,7 +403,7 @@ void rotaryButtonClickHandler() {
             showEditScreen(menuPosition);
             lcd.cursor_on();
             setCursorPosition();
-            
+
         } else {
             editingPosition++;
             if (menuPosition == 0) {
@@ -435,7 +435,7 @@ void rotaryEncoderTick() {
         encoder.tick();
 
         int newPos = encoder.getPosition();
-        
+
         if (pos != newPos) {
             RotaryEncoder::Direction direction = encoder.getDirection();
 
@@ -450,33 +450,28 @@ void rotaryEncoderTick() {
                     case 0: // day
                         encoderAddValue(direction, newTime.Day, 1, 31);
                         lcd.print(to2digits(newTime.Day));
-                        setCursorPosition();
                         break;
-                    
+
                     case 1: // month
                         encoderAddValue(direction, newTime.Month, 1, 12);
                         lcd.print(to2digits(newTime.Month));
-                        setCursorPosition();
                         break;
-                    
+
                     case 2: // year
                         encoderAddValue(direction, newTime.Year, 0, 255);
                         lcd.print(to2digits(newTime.Year + 1970));
-                        setCursorPosition();
                         break;
-                    
+
                     case 3: // hour
                         encoderAddValue(direction, newTime.Hour, 0, 23);
                         lcd.print(to2digits(newTime.Hour));
-                        setCursorPosition();
                         break;
 
                     case 4: // minute
                         encoderAddValue(direction, newTime.Minute, 0, 59);
                         lcd.print(to2digits(newTime.Minute));
-                        setCursorPosition();
                         break;
-                    
+
                     default:
                         break;
                     }
@@ -488,21 +483,18 @@ void rotaryEncoderTick() {
                     case 0: // hours
                         encoderAddValue(direction, startHour[pumpPosition], 0, 23);
                         lcd.print(to2digits(startHour[pumpPosition]));
-                        setCursorPosition();
                         break;
 
                     case 1: // minutes
                         encoderAddValue(direction, startMinute[pumpPosition], 0, 59);
                         lcd.print(to2digits(startMinute[pumpPosition]));
-                        setCursorPosition();
                         break;
 
                     case 2: // duration
                         encoderAddValue(direction, duration[pumpPosition], 1, 59);
                         lcd.print(to2digits(duration[pumpPosition]));
-                        setCursorPosition();
                         break;
-                    
+
                     case 3: // calendar
                     case 4:
                     case 5:
@@ -512,9 +504,8 @@ void rotaryEncoderTick() {
                     case 9:
                         encoderAddValue(direction, calendar[pumpPosition][editingPosition - 3], 0, 1);
                         lcd.print(calendarDayForPrint(editingPosition - 3, calendar[pumpPosition][editingPosition - 3]));
-                        setCursorPosition();
                         break;
-                    
+
                     case 10: // on/off
                         encoderAddValue(direction, isOn[pumpPosition], 0, 1);
                         if (isOn[pumpPosition] == 1) {
@@ -522,15 +513,13 @@ void rotaryEncoderTick() {
                         } else {
                             lcd.print("OFF");
                         }
-                        setCursorPosition();
                         break;
-                    
-                    
+
                     default:
                         break;
                     }
                 }
-                
+                setCursorPosition();
             }
 
             pos = newPos;
