@@ -43,9 +43,9 @@ OneButton rotaryButton(ROTARYENCODER_BUTTON, true);
 VirtualDelay vDelay;
 int vDelayDuration = 4000;
 
-uint8_t lcdBacklight = 1;
 VirtualDelay lcdBacklightDelay;
-int backlightDelayDuration = 10000;
+unsigned int backlightDelayDuration = 10000;
+unsigned long backlightPreviousMillis = 0;
 
 // initializes the pumps
 int pumpCount = 2;
@@ -334,9 +334,14 @@ void lcdCycler() {
     }
 }
 
-void lcdBacklightWatcher() {
-    // TODO
+void lcdBacklightTick() {
     unsigned long currentMillis = millis();
+
+    if (currentMillis - backlightPreviousMillis >= backlightDelayDuration) {
+        lcd.noBacklight();
+    } else {
+        lcd.backlight();
+    }
 }
 
 void menuScreen(int id) {
@@ -381,8 +386,9 @@ void rotaryButtonLongPressHandler() {
         calendarPosition = 0;
         if (menuPosition == 0) {
             saveTimeToRTC(newTime);
+        } else {
+            updateEEPROMSettings();
         }
-        updateEEPROMSettings();
         isEditing = false; // this must be the last command here.
     }
 }
@@ -438,6 +444,7 @@ void rotaryEncoderTick() {
 
         if (pos != newPos) {
             RotaryEncoder::Direction direction = encoder.getDirection();
+            backlightPreviousMillis = millis();
 
             if (isMenu) {
                 // user is in the main menu
@@ -533,7 +540,7 @@ void setup() {
     Serial.begin(9600);
 
     lcd.begin();
-    lcd.setBacklight(lcdBacklight);
+    lcd.backlight();
     createCustomChars();
     lcd.home();
     lcd.print("PlantPumper v2");
@@ -551,6 +558,7 @@ void loop() {
     pumpWatcher();
     rotaryButton.tick();
     rotaryEncoderTick();
+    lcdBacklightTick();
 
     lcdCycler();
 }
