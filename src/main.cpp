@@ -44,7 +44,7 @@ VirtualDelay vDelay;
 int vDelayDuration = 4000;
 
 VirtualDelay lcdBacklightDelay;
-unsigned int backlightDelayDuration = 10000;
+unsigned int backlightDelayDuration = 30000;
 unsigned long backlightPreviousMillis = 0;
 
 // initializes the pumps
@@ -580,13 +580,15 @@ void rotaryEncoderTick() {
 **/
 void pumpActivationWatcher() {
     for (int i = 0; i < pumpCount; i++) {
-        if (calendar[i][actualTime.Wday] == 1) { // weekday is matched
-            if ((actualTime.Hour == startHour[i]) && (actualTime.Minute == startMinute[i]) && (actualTime.Second == 0)) { // time is matched
-                // start the pump
-                pumpActive[i] = true;
-            } else if ((actualTime.Hour == startHour[i]) && (actualTime.Minute == startMinute[i]) && (actualTime.Second == duration[i])) {
-                // stops the pump
-                pumpActive[i] = false;
+        if (isOn[i] == 1) {
+            if (calendar[i][actualTime.Wday - 1] == 1) { // weekday is matched. -1 because Wday is from 1, not 0
+                if ((actualTime.Hour == startHour[i]) && (actualTime.Minute == startMinute[i]) && (actualTime.Second == 0)) { // time is matched
+                    // start the pump
+                    pumpActive[i] = true;
+                } else if ((actualTime.Hour == startHour[i]) && (actualTime.Minute == startMinute[i]) && (actualTime.Second == duration[i])) {
+                    // stops the pump
+                    pumpActive[i] = false;
+                }
             }
         }
     }
@@ -595,7 +597,7 @@ void pumpActivationWatcher() {
 // ============================== SETUP & LOOP =================================
 
 void setup() {
-    // Serial.begin(9600);
+    Serial.begin(9600);
 
     // inits LCD
     lcd.begin();
